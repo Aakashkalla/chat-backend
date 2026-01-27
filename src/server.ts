@@ -26,6 +26,18 @@ function generateRoomId(): string {
 io.on('connection', (socket)=>{
     console.log("User connected:", socket.id);
 
+    socket.on('create_room', (capacity : number)=>{
+        const roomID = generateRoomId();
+        rooms[roomID] = {
+            users : [],
+            capacity
+        }
+
+        socket.emit('room_created', {roomId : roomID});
+
+        console.log(`✅ Room ${roomID} created with capacity ${capacity}`);
+    })
+
     socket.on('disconnect',()=>{
         console.log('User disconnected:', socket.id)
     });
