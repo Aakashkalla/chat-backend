@@ -19,6 +19,8 @@ const io = new Server(httpServer,{
 
 const rooms: RoomStore = {};
 
+const userRooms : {[socketId : string] : string} = {};
+
 function generateRoomId(): string {
     return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
@@ -51,6 +53,9 @@ io.on('connection', (socket)=>{
 
         rooms[roomId].users.push(socket.id);
         socket.join(roomId);
+
+        userRooms[socket.id] = roomId;
+
         socket.emit('join_success',{roomId})
         socket.to(roomId).emit('user_joined',{username, socketId: socket.id})
 
@@ -73,7 +78,33 @@ io.on('connection', (socket)=>{
     })
 
     socket.on('disconnect',()=>{
-        console.log('User disconnected:', socket.id)
+        console.log('User disconnected:', socket.id);
+
+        const roomId = userRooms[socket.id];
+
+        if(!roomId){
+            return;
+        }
+
+        if(!rooms[roomId]){
+            delete userRooms[socket.id];
+            return;
+        }
+        const userIndex = rooms[roomId].users.indexOf(socket.id);
+        if(userIndex!==-1){
+            rooms[roomId].users.splice(userIndex,1);
+        }
+
+        socket.to(roomId).emit('user_left', {socketId : socket.id});
+
+        if(rooms[roomId].users.length===0){
+            delete rooms[roomId];
+            console.log(`Room ${roomId} deleted`);
+        }else{
+            console.log(`User left the Room ${roomId}`);
+        }
+        delete userRooms[socket.id];
+
     });
 })
 
