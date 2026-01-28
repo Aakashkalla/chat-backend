@@ -42,21 +42,35 @@ io.on('connection', (socket)=>{
         const {roomId, username} = data;
 
         if(!rooms[roomId]){
-            return socket.emit('join_error', {message : 'Room does not exist!'})
+            return socket.emit('join_error', {message : 'Room does not exist!'});
         }
 
         if(rooms[roomId].users.length>= rooms[roomId].capacity){
-            return socket.emit('join_error', {message : 'Room is full!'} )
+            return socket.emit('join_error', {message : 'Room is full!'} );
         }
 
         rooms[roomId].users.push(socket.id);
         socket.join(roomId);
-        socket.emit('join_sucess',{roomId})
+        socket.emit('join_success',{roomId})
         socket.to(roomId).emit('user_joined',{username, socketId: socket.id})
 
         console.log(`${username} joined room ${roomId}`)
     })
 
+
+    socket.on('send_message', (data : {roomId : string, username:string, message : string})=>{
+        const {username, roomId, message} = data;
+
+        if(!rooms[roomId]){
+            return socket.emit('error',{message: "Room does not exist!"});
+        }
+
+        const messageData = {username, message, timestamp : new Date().toISOString()};
+
+        io.to(roomId).emit('receive_message', messageData);
+
+        console.log(`Message in room ${roomId} from ${username}: ${message}`);
+    })
 
     socket.on('disconnect',()=>{
         console.log('User disconnected:', socket.id)
