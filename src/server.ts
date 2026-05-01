@@ -2,19 +2,22 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import type { RoomStore } from './types.js';
 
 const app = express();
-app.use(cors());
+const allowedOrigin = process.env.FRONTEND_ORIGIN ?? '*';
+app.use(cors({ origin: allowedOrigin }));
 app.use(express.json());
 
 const httpServer = createServer(app);
 
-const io = new Server(httpServer,{
-    cors:{
-        origin : "*",
-        methods:["GET", "POST"]
-    }
+const io = new Server(httpServer, {
+    cors: {
+        origin: allowedOrigin,
+        methods: ["GET", "POST"],
+    },
 });
 
 const rooms: RoomStore = {};
@@ -26,7 +29,6 @@ function generateRoomId(): string {
 }
 
 io.on('connection', (socket)=>{
-    console.log("User connected:", socket.id);
 
     socket.on('create_room', (capacity : number)=>{
         const roomID = generateRoomId();
@@ -37,7 +39,6 @@ io.on('connection', (socket)=>{
 
         socket.emit('room_created', {roomId : roomID});
 
-        console.log(`Room ${roomID} created with capacity ${capacity}`);
     })
 
     socket.on('join_room',(data:{roomId: string; username: string})=>{
@@ -58,8 +59,6 @@ io.on('connection', (socket)=>{
 
         socket.emit('join_success',{roomId})
         socket.to(roomId).emit('user_joined',{username, socketId: socket.id})
-
-        console.log(`${username} joined room ${roomId}`)
     })
 
 
@@ -74,7 +73,6 @@ io.on('connection', (socket)=>{
 
         io.to(roomId).emit('receive_message', messageData);
 
-        console.log(`Message in room ${roomId} from ${username}: ${message}`);
     })
 
     socket.on('disconnect',()=>{
@@ -99,16 +97,25 @@ io.on('connection', (socket)=>{
 
         if(rooms[roomId].users.length===0){
             delete rooms[roomId];
-            console.log(`Room ${roomId} deleted`);
-        }else{
-            console.log(`User left the Room ${roomId}`);
         }
         delete userRooms[socket.id];
-
     });
 })
 
-const PORT = 3001;
+const isProduction = process.env.NODE_ENV === 'production';
+if (isProduction) {
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const defaultClientPath = path.resolve(__dirname, '../../chat-frontend/dist');
+    const clientDistPath = process.env.CLIENT_DIST_PATH ?? defaultClientPath;
+
+    app.use(express.static(clientDistPath));
+    app.get('*', (_req, res) => {
+        res.sendFile(path.join(clientDistPath, 'index.html'));
+    });
+}
+
+const PORT = process.env.PORT ? Number(process.env.PORT) : 3001;
 httpServer.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
 });
