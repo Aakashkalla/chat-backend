@@ -1,4 +1,5 @@
 import express from 'express';
+import type { Request, Response } from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
@@ -31,7 +32,7 @@ const corsOrigin: cors.CorsOptions['origin'] = isWildcardOrigin
 app.use(cors({ origin: corsOrigin }));
 app.use(express.json());
 
-app.get('/healthz', (_req, res) => {
+app.get('/healthz', (_req: Request, res: Response) => {
     res.status(200).json({ ok: true });
 });
 
@@ -136,7 +137,7 @@ if (isProduction) {
 
     if (clientDistExists) {
         app.use(express.static(clientDistPath));
-        app.get('*', (_req, res) => {
+        app.get('*', (_req: Request, res: Response) => {
             res.sendFile(path.join(clientDistPath, 'index.html'));
         });
     }
