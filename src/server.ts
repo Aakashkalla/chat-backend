@@ -4,19 +4,43 @@ import { Server } from 'socket.io';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { existsSync } from 'fs';
 import type { RoomStore } from './types.js';
 
 const app = express();
-const allowedOrigin = process.env.FRONTEND_ORIGIN ?? '*';
-app.use(cors({ origin: allowedOrigin }));
+const allowedOriginsRaw =
+    process.env.ALLOWED_ORIGINS ?? process.env.FRONTEND_ORIGIN ?? '*';
+const allowedOrigins = allowedOriginsRaw
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+const isWildcardOrigin =
+    allowedOrigins.length === 0 || allowedOrigins.includes('*');
+
+const corsOrigin: cors.CorsOptions['origin'] = isWildcardOrigin
+    ? '*'
+    : (origin, callback) => {
+          if (!origin || allowedOrigins.includes(origin)) {
+              callback(null, true);
+              return;
+          }
+          callback(new Error('Not allowed by CORS'));
+      };
+
+app.use(cors({ origin: corsOrigin }));
 app.use(express.json());
+
+app.get('/healthz', (_req, res) => {
+    res.status(200).json({ ok: true });
+});
 
 const httpServer = createServer(app);
 
 const io = new Server(httpServer, {
     cors: {
-        origin: allowedOrigin,
-        methods: ["GET", "POST"],
+        origin: corsOrigin,
+        methods: ['GET', 'POST'],
     },
 });
 
@@ -108,11 +132,14 @@ if (isProduction) {
     const __dirname = path.dirname(__filename);
     const defaultClientPath = path.resolve(__dirname, '../../chat-frontend/dist');
     const clientDistPath = process.env.CLIENT_DIST_PATH ?? defaultClientPath;
+    const clientDistExists = existsSync(clientDistPath);
 
-    app.use(express.static(clientDistPath));
-    app.get('*', (_req, res) => {
-        res.sendFile(path.join(clientDistPath, 'index.html'));
-    });
+    if (clientDistExists) {
+        app.use(express.static(clientDistPath));
+        app.get('*', (_req, res) => {
+            res.sendFile(path.join(clientDistPath, 'index.html'));
+        });
+    }
 }
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3001;
